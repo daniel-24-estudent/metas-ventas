@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#2459d6">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Mis metas de ventas</title>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+--bg:#f4f6fa;--card:#fff;--tx:#1d2433;--mu:#667085;--bd:#dde2ec;--pr:#2459d6;--ok:#16a34a;--wa:#d97706;--bad:#dc2626;color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12161f;--card:#1b212d;--tx:#e8ecf4;--mu:#9aa5b8;--bd:#2d3647;--pr:#6d98ff;--ok:#4ade80;--wa:#fbbf24;--bad:#f87171;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#12161f;--card:#1b212d;--tx:#e8ecf4;--mu:#9aa5b8;--bd:#2d3647;--pr:#6d98ff;--ok:#4ade80;--wa:#fbbf24;--bad:#f87171;color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:900px;margin:0 auto;padding:16px}
+h1{font-size:22px;margin:0}h2{font-size:17px;margin:0 0 10px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:14px;margin-bottom:14px}
+.mu{color:var(--mu);font-size:14px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.sp{justify-content:space-between}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px}
+input,select,button{font:inherit;padding:8px 10px;border:1px solid var(--bd);border-radius:8px;background:var(--card);color:var(--tx);min-width:0}
+button{cursor:pointer}button.p{background:var(--pr);color:#fff;border-color:var(--pr)}
+button.x{color:var(--bad)}
+.f{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;align-items:end}
+.f label{display:flex;flex-direction:column;font-size:13px;color:var(--mu);gap:3px}
+.bar{height:12px;background:var(--bd);border-radius:6px;overflow:hidden;margin:8px 0}
+.bar i{display:block;height:100%;background:var(--pr)}
+.big{font-size:22px;font-weight:700}
+.ban{background:rgba(217,119,6,.12);border:1px solid var(--wa);border-radius:10px;padding:12px;margin-bottom:14px}
+.need{background:rgba(36,89,214,.1);border-radius:8px;padding:8px;font-size:14px;margin-top:6px}
+.ok{color:var(--ok)}.scroll{overflow-x:auto}table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{text-align:left;padding:6px;border-bottom:1px solid var(--bd);white-space:nowrap}
+#toast{position:fixed;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom,0px));max-width:620px;margin:auto;color:#fff;padding:12px 14px;border-radius:10px;display:none;z-index:9;font-weight:600}
+button{min-height:40px}.row>input:not([type=number]):not([type=file]):not([type=checkbox]){flex:1 1 140px}
+@media (max-width:600px){main{padding:10px}h1{font-size:19px}.big{font-size:20px}.grid{grid-template-columns:1fr}th,td{padding:6px 4px;font-size:13px}input,select,button{font-size:16px}}
+</style>
+</head>
+<body>
+<div id="toast"></div>
+<main id="app"></main>
+<script>
+var MN=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','setiembre','octubre','noviembre','diciembre'];
+var DN=['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+var KEY='metas_ventas_v1',S,mem=null,fc='',fd='',draft=[],pend='',tt,dip=null,it={n:'',q:'1',u:'und',pr:'',pid:'',rc:'0'};
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
+function bonus(m){return m>=6?5:m>=3?2:0}
+function norm(s){return String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim()}
+function load(){var r=null;try{var t=localStorage.getItem(KEY);if(t)r=JSON.parse(t)}catch(e){}
+  r=r||mem||{months:{},skipSun:false};r.clients=r.clients||[];r.done=r.done||{};
+  r.clients.forEach(function(c){if(c.pid===undefined)c.pid=null});
+  Object.keys(r.months).forEach(function(k){var M=r.months[k];M.base=M.base||{};M.baseR=M.baseR||{};delete M.baseRec;delete M.baseBonus;
+    if(!M.orders){M.orders=(M.sales||[]).map(function(s){return{id:s.id,date:s.date,client:'(sin cliente)',items:[{name:s.name,qty:s.qty,unit:s.unit,price:s.price,pid:s.pid}]}});delete M.sales}
+    M.orders.forEach(function(o){if(o.bonus){var i=o.items[0];i.rec=o.bonus;i.rm=o.rec?o.rec.months:(o.bonus>=5?6:3);r.done[norm(o.client)+'|'+i.pid]=1;delete o.bonus;delete o.rec}})});
+  return r}
+function save(){mem=S;try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
+function toast(t,bad){var e=document.getElementById('toast');e.textContent=t;e.style.display='block';e.style.background=bad?'#b91c1c':'#15803d';clearTimeout(tt);tt=setTimeout(function(){e.style.display='none'},7000)}
+function ask(k){if(pend===k){pend='';return true}pend=k;render();setTimeout(function(){if(pend===k){pend='';render()}},4000);return false}
+function xb(k,fn,t){return '<button class="x" onclick="'+fn+'">'+(pend===k?'¿Seguro?':(t||'✕'))+'</button>'}
+function ym(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')}
+function iso(d){return ym(d)+'-'+String(d.getDate()).padStart(2,'0')}
+function esc(s){return String(s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+function money(n){return 'S/ '+(+n||0).toLocaleString('es-PE',{minimumFractionDigits:2,maximumFractionDigits:2})}
+function mlabel(k){var p=k.split('-');return MN[+p[1]-1]+' '+p[0]}
+function v(id){var e=document.getElementById(id);return e?e.value.trim():''}
+window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();dip=e;render()});
+try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
+S=load();
+var now=new Date(),cur=ym(now),view=cur,cfg=false;fd=iso(now);
+function ensure(k){
+  if(S.months[k])return;
+  var prev=Object.keys(S.months).filter(function(x){return x<k}).sort().pop();
+  var secs=prev?JSON.parse(JSON.stringify(S.months[prev].sections)):[{id:uid(),name:'P&G',products:[
+    {id:uid(),name:'Pantene',goal:0,rgoal:0},{id:uid(),name:'Desodorantes',goal:0,rgoal:0},{id:uid(),name:'Afeitadores',goal:0,rgoal:0}]}];
+  S.months[k]={sections:secs,orders:[],base:{},baseR:{},reviewed:!prev};
+  if(!prev)cfg=true;
+  save();
+}
+ensure(cur);
+function daysLeft(){
+  var y=now.getFullYear(),m=now.getMonth(),last=new Date(y,m+1,0).getDate(),n=0;
+  for(var d=now.getDate();d<=last;d++){if(S.skipSun&&new Date(y,m,d).getDay()===0)continue;n++}
+  return n;
+}
+function sold(M,pid){var t=+M.base[pid]||0;M.orders.forEach(function(o){o.items.forEach(function(i){if(i.pid===pid)t+=i.qty*i.price})});return t}
+function recs(M,pid){var b=M.baseR[pid]||{},a=+b.a||0,c=+b.b||0,n=a+c,bo=a*2+c*5;
+  M.orders.forEach(function(o){o.items.forEach(function(i){if(i.pid===pid&&i.rec){n++;bo+=i.rec}})});return{n:n,b:bo}}
+function pname(M,pid){var r='—';M.sections.forEach(function(s){s.products.forEach(function(p){if(p.id===pid)r=p.name})});return r}
+function findE(nm,pid){var n=norm(nm);if(!n)return null;var l=S.clients.filter(function(c){return norm(c.name)===n&&(c.pid===pid||c.pid===null)});
+  return l.filter(function(c){return c.pid===pid})[0]||l[0]||null}
+function render(){
+  ['n','q','u','pr','pid','rc'].forEach(function(k){var e=document.getElementById(k);if(e)it[k]=e.value});
+  var M=S.months[view],isCur=view===cur,dl=daysLeft();
+  var keys=Object.keys(S.months).sort().reverse();
+  var h='<div class="card"><div class="row sp"><div><h1>Mis metas de ventas</h1><div class="mu">Hoy es '+DN[now.getDay()]+' '+now.getDate()+' de '+MN[now.getMonth()]+' de '+now.getFullYear()+
+   (isCur?' · quedan <b>'+dl+'</b> día(s) de venta (contando hoy)':'')+'</div></div>'+
+   '<div class="row"><select onchange="view=this.value;cfg=false;draft=[];render()">'+keys.map(function(k){return '<option value="'+k+'"'+(k===view?' selected':'')+'>'+mlabel(k)+(k===cur?' (actual)':'')+'</option>'}).join('')+'</select>'+
+   '<button onclick="cfg=!cfg;render()">'+(cfg?'Cerrar configuración':'⚙ Configurar mes')+'</button></div></div>'+
+   '<label class="mu" style="display:block;margin-top:8px"><input type="checkbox" '+(S.skipSun?'checked':'')+' onchange="S.skipSun=this.checked;save();render()"> No contar domingos en los días que faltan</label></div>';
+  if(isCur&&!M.reviewed&&!cfg)
+    h+='<div class="ban"><b>¡Empezó '+mlabel(cur)+'!</b> Copié las secciones y metas del mes anterior. ¿Cambió algo? Puedes agregar o quitar secciones y productos, fijar las nuevas metas y subir la nueva lista de clientes prioritarios.<div class="row" style="margin-top:8px"><button class="p" onclick="cfg=true;render()">Revisar y editar</button><button onclick="S.months[cur].reviewed=true;save();render()">Dejarlo igual</button></div></div>';
+  if(cfg)h+=config(M);
+  var all=[];M.sections.forEach(function(s){s.products.forEach(function(p){all.push({s:s,p:p})})});
+  var rt=0,bt=0,gt=0;all.forEach(function(a){var r=recs(M,a.p.id);rt+=r.n;bt+=r.b;gt+=+a.p.rgoal||0});
+  h+='<div class="card row sp"><div><div class="mu">Pedidos del mes</div><div class="big">'+((+M.baseOrders||0)+M.orders.length)+'</div></div><div><div class="mu">Clientes recuperados</div><div class="big">'+rt+(gt?' / '+gt:'')+'</div></div><div><div class="mu">Bono ganado (lo que te pagan)</div><div class="big ok">'+money(bt)+'</div></div></div>';
+  h+='<div class="grid">';
+  all.forEach(function(a){var p=a.p;
+    var vv=sold(M,p.id),g=+p.goal||0,rem=Math.max(g-vv,0),pc=g?Math.min(vv/g*100,100):0,r=recs(M,p.id),rg=+p.rgoal||0,rp=rg?Math.min(r.n/rg*100,100):0;
+    h+='<div class="card" style="margin:0"><div class="mu">'+esc(a.s.name)+'</div><h2>'+esc(p.name)+'</h2>'+
+     '<div class="big">'+money(vv)+'</div><div class="mu">de '+(g?money(g):'sin meta (configúrala)')+'</div>'+
+     '<div class="bar"><i style="width:'+pc+'%;background:'+(pc>=100?'var(--ok)':'var(--pr)')+'"></i></div>'+
+     '<div class="row sp"><span>'+pc.toFixed(0)+'%</span><span>Falta: <b>'+money(rem)+'</b></span></div>'+
+     (g?(rem<=0?'<div class="need ok">¡Meta de ventas cumplida! 🎉</div>':
+       isCur?(dl>0?'<div class="need">Debes vender <b>'+money(rem/dl)+'</b> por día (en '+dl+' día(s))</div>':'<div class="need">El mes ya terminó</div>'):''):'')+
+     '<div style="margin-top:12px;border-top:1px solid var(--bd);padding-top:8px"><div class="mu">Clientes recuperados</div><b>'+r.n+'</b> '+(rg?'de '+rg:'(sin meta de clientes)')+
+     (rg?'<div class="bar"><i style="width:'+rp+'%;background:'+(rp>=100?'var(--ok)':'var(--wa)')+'"></i></div><div class="row sp"><span>'+rp.toFixed(0)+'%</span><span>Faltan: <b>'+Math.max(rg-r.n,0)+'</b></span></div>':'')+
+     '<div class="ok" style="margin-top:4px">Bono: <b>'+money(r.b)+'</b></div></div></div>'});
+  h+='</div>';
+  if(!all.length)h+='<div class="card mu">No hay productos prioridad. Usa "Configurar mes" para agregarlos.</div>';
+  h+='<div class="card" style="margin-top:14px"><h2>Nuevo pedido</h2><div class="f">'+
+   '<label>Cliente<input id="cl" autocomplete="off" list="cll" value="'+esc(fc)+'" oninput="fc=this.value;hint()" placeholder="Nombre del cliente"></label>'+
+   '<datalist id="cll">'+S.clients.map(function(c){return '<option value="'+esc(c.name)+'">'}).join('')+'</datalist>'+
+   '<label>Fecha<input id="dt" type="date" value="'+fd+'" onchange="fd=this.value"></label></div>';
+  if(draft.length){
+    var tt2=0;h+='<div class="scroll" style="margin-top:8px"><table><tr><th>Producto</th><th>Prioridad</th><th>Cant.</th><th>Precio</th><th>Total</th><th>Bono</th><th></th></tr>'+
+    draft.map(function(i,x){tt2+=i.qty*i.price;return '<tr><td>'+esc(i.name)+'</td><td>'+esc(pname(M,i.pid))+'</td><td>'+i.qty+' '+esc(i.unit)+'</td><td>'+money(i.price)+'</td><td>'+money(i.qty*i.price)+'</td><td class="ok">'+(i.man?'+'+money(bonus(i.man)):'')+'</td><td><button class="x" onclick="draft.splice('+x+',1);render()">✕</button></td></tr>'}).join('')+
+    '<tr><td colspan="4"><b>Total del pedido</b></td><td colspan="3"><b>'+money(tt2)+'</b></td></tr></table></div>';
+  }
+  h+='<div class="f" style="margin-top:10px">'+
+   '<label>Producto<input id="n" autocomplete="off" value="'+esc(it.n)+'" placeholder="Ej: Pantene 400ml"></label>'+
+   '<label>Cantidad<input id="q" type="number" min="0" step="any" value="'+esc(it.q)+'"></label>'+
+   '<label>Unidad<input id="u" autocomplete="off" list="ul" value="'+esc(it.u)+'"><datalist id="ul"><option>und<option>caja<option>paquete<option>docena</datalist></label>'+
+   '<label>Precio por unidad (S/)<input id="pr" type="number" min="0" step="any" value="'+esc(it.pr)+'"></label>'+
+   '<label>Prioridad<select id="pid" onchange="hint()">'+all.map(function(a){return '<option value="'+a.p.id+'"'+(it.pid===a.p.id?' selected':'')+'>'+esc(a.p.name)+(M.sections.length>1?' ('+esc(a.s.name)+')':'')+'</option>'}).join('')+'</select></label>'+
+   '<label>¿Cliente a recuperar en este producto?<select id="rc"><option value="0"'+(it.rc==='0'?' selected':'')+'>No es prioritario</option><option value="3"'+(it.rc==='3'?' selected':'')+'>Sí · 3 a 5 meses sin comprar (S/ 2)</option><option value="6"'+(it.rc==='6'?' selected':'')+'>Sí · 6 meses o más (S/ 5)</option></select></label>'+
+   '<button onclick="addItem()">+ Añadir producto</button></div><div id="hint" class="need" style="display:none"></div>'+
+   '<div class="row" style="margin-top:10px"><button class="p" onclick="saveOrder()">Guardar pedido</button>'+(draft.length?'<button onclick="draft=[];render()">Vaciar</button>':'')+'</div>'+
+   '<div class="mu" style="margin-top:6px">Un cliente con 2 pedidos: guarda uno y crea otro. Si marcas "Sí" a mano, la próxima vez que compre ese producto ya no contará como prioritario.</div></div>';
+  h+=clientsHtml(M,all);
+  var os=M.orders.slice().sort(function(a,b){return a.date<b.date?1:-1});
+  h+='<div class="card"><h2>Pedidos de '+mlabel(view)+' ('+os.length+')</h2>'+(os.length?'<div class="scroll"><table><tr><th>Fecha</th><th>Cliente</th><th>Productos</th><th>Total</th><th>Bono</th><th></th></tr>'+
+   os.map(function(o){var t=0,b=0;var d=o.items.map(function(i){t+=i.qty*i.price;if(i.rec)b+=i.rec;return i.qty+' '+esc(i.unit)+' '+esc(i.name)+(i.rec?' <span class="ok">(+'+money(i.rec)+')</span>':'')}).join(', ');
+    return '<tr><td>'+o.date+'</td><td>'+esc(o.client)+'</td><td style="white-space:normal">'+d+'</td><td><b>'+money(t)+'</b></td><td class="ok">'+(b?'+'+money(b):'')+'</td><td>'+xb('o'+o.id,'delOrder(\''+o.id+'\')')+'</td></tr>'}).join('')+'</table></div>':'<div class="mu">Aún no hay pedidos anotados.</div>')+'</div>';
+  h+=backupHtml();document.getElementById('app').innerHTML=h;hint();
+}
+function hint(){var e=document.getElementById('hint'),rc=document.getElementById('rc'),ps=document.getElementById('pid');if(!e||!rc||!ps)return;
+  var pid=ps.value,n=norm(fc),en=pid?findE(fc,pid):null,dn=n&&S.done[n+'|'+pid],dr=draft.some(function(i){return i.pid===pid&&i.man}),msg='';
+  if(en){msg=bonus(en.months)?'⭐ <b>Cliente prioritario</b> en este producto ('+en.months+' meses sin comprar): ganas <b>'+money(bonus(en.months))+'</b> automáticamente al guardar.':'En la lista, pero con menos de 3 meses: sin bono.'}
+  else if(dn)msg='Este cliente ya fue recuperado en este producto: ya no cuenta como prioritario.';
+  else if(dr)msg='Ya marcaste a este cliente como recuperado en este producto dentro de este pedido.';
+  rc.disabled=!!(en||dn||dr);if(rc.disabled)rc.value='0';
+  e.style.display=msg?'block':'none';e.innerHTML=msg}
+function addItem(){
+  var n=v('n'),q=+v('q'),p=v('pr'),pid=v('pid'),rc=+v('rc');
+  if(!n||!(q>0)||p===''||!pid){toast('Completa producto, cantidad, precio y prioridad.',1);return}
+  var it2={name:n,qty:q,unit:v('u')||'una',price:+p,pid:pid};if(!v('u'))it2.unit='und';
+  if(rc&&!document.getElementById('rc').disabled){if(!fc.trim()){toast('Escribe el cliente antes de marcarlo como prioritario.',1);return}it2.man=rc}
+  draft.push(it2);it.n='';it.pr='';it.q='1';it.rc='0';render();
+}
+function saveOrder(){
+  var M=S.months[view];
+  if(!fc.trim()){toast('Escribe el nombre del cliente.',1);return}
+  if(!draft.length){toast('Añade al menos un producto al pedido.',1);return}
+  var nc=norm(fc),items=[],tot=0,cnt=0;
+  draft.forEach(function(d){var i={name:d.name,qty:d.qty,unit:d.unit,price:d.price,pid:d.pid},key=nc+'|'+d.pid,en=findE(fc,d.pid);
+    if(!S.done[key]){
+      if(en&&bonus(en.months)>0){i.rec=bonus(en.months);i.rm=en.months;i.entry=en;S.clients=S.clients.filter(function(c){return c.id!==en.id});S.done[key]=1}
+      else if(!en&&d.man){i.rec=bonus(d.man);i.rm=d.man;i.man=1;S.done[key]=1}}
+    if(i.rec){tot+=i.rec;cnt++}items.push(i)});
+  M.orders.push({id:uid(),date:fd||iso(now),client:fc.trim(),items:items});
+  draft=[];fc='';save();render();
+  toast(cnt?'¡'+cnt+' recuperado(s)! Ganaste '+money(tot)+' con este pedido.':'Pedido guardado.');
+}
+function delOrder(id){if(!ask('o'+id))return;var M=S.months[view],o=M.orders.filter(function(x){return x.id===id})[0];
+  if(o)o.items.forEach(function(i){if(i.rec){delete S.done[norm(o.client)+'|'+i.pid];if(i.entry&&!S.clients.some(function(c){return c.id===i.entry.id}))S.clients.push(i.entry)}});
+  M.orders=M.orders.filter(function(x){return x.id!==id});save();render();toast('Pedido eliminado.')}
+function clientsHtml(M,all){
+  var h='<div class="card"><h2>Clientes prioritarios por recuperar ('+S.clients.length+')</h2>'+
+  '<div class="mu" style="margin:6px 0">Sube el Excel de la empresa (.xlsx o .csv; si es un .xls antiguo, guárdalo como .xlsx). 1.ª fila con títulos: <b>Cliente</b>, <b>Producto</b> (si el archivo lo trae) y <b>Meses</b> sin comprar o <b>Fecha</b> de última compra. Si no subes archivo, agrégalos aquí a mano o marca "Sí" al anotar el pedido. Al recuperar un cliente, sale de la lista.</div>'+
+  '<div class="row"><input type="file" accept=".xlsx,.csv" onchange="importXls(this.files[0]);this.value=\'\'">'+
+  '<label class="mu">Si el archivo no trae el tiempo: <select id="dm"><option value="3">3 a 5 meses (S/ 2)</option><option value="6">6 meses o más (S/ 5)</option></select></label></div>'+
+  '<div class="f" style="margin-top:10px"><label>Cliente (manual)<input id="mcn" autocomplete="off" placeholder="Nombre"></label>'+
+  '<label>Producto<select id="mcp">'+all.map(function(a){return '<option value="'+a.p.id+'">'+esc(a.p.name)+'</option>'}).join('')+'<option value="">Cualquier prioritario</option></select></label>'+
+  '<label>Tiempo sin comprar<select id="mcm"><option value="3">3 a 5 meses (S/ 2)</option><option value="6">6 meses o más (S/ 5)</option></select></label>'+
+  '<button onclick="addClient()">+ Agregar a la lista</button></div>'+
+  (S.clients.length?'<div class="row" style="margin-top:8px">'+xb('vc','if(ask(\'vc\')){S.clients=[];save();render()}','Vaciar lista')+'</div><div class="scroll" style="max-height:240px;overflow-y:auto;margin-top:8px"><table><tr><th>Cliente</th><th>Producto</th><th>Meses</th><th>Bono</th><th></th></tr>'+
+   S.clients.map(function(c){var b=bonus(c.months);return '<tr><td>'+esc(c.name)+'</td><td>'+(c.pid?esc(pname(M,c.pid)):'Cualquiera')+'</td><td>'+c.months+'</td><td>'+(b?money(b):'—')+'</td><td>'+xb('c'+c.id,'delClient(\''+c.id+'\')')+'</td></tr>'}).join('')+'</table></div>':'');
+  return h+'</div>';
+}
+function addClient(){var n=v('mcn');if(!n){toast('Escribe el nombre del cliente.',1);return}
+  var pid=v('mcp')||null,m=+v('mcm'),k=norm(n)+'|'+pid;
+  if(pid&&S.done[k]){toast('Ese cliente ya fue recuperado en este producto.',1);return}
+  var ex=S.clients.filter(function(c){return norm(c.name)===norm(n)&&c.pid===pid})[0];
+  if(ex)ex.months=m;else S.clients.push({id:uid(),name:n,pid:pid,months:m});
+  save();render();toast('Cliente agregado a la lista.')}
+function delClient(id){if(!ask('c'+id))return;S.clients=S.clients.filter(function(c){return c.id!==id});save();render()}
+async function inflate(u8){var s=new Blob([u8]).stream().pipeThrough(new DecompressionStream('deflate-raw'));return new Uint8Array(await new Response(s).arrayBuffer())}
+async function unzip(buf){var u=new Uint8Array(buf),dv=new DataView(buf),e=u.length-22;
+  while(e>=0&&dv.getUint32(e,true)!==0x06054b50)e--;
+  if(e<0)throw new Error('zip');
+  var n=dv.getUint16(e+10,true),p=dv.getUint32(e+16,true),out={},td=new TextDecoder();
+  for(var i=0;i<n;i++){
+    var meth=dv.getUint16(p+10,true),cs=dv.getUint32(p+20,true),nl=dv.getUint16(p+28,true),xl=dv.getUint16(p+30,true),cl=dv.getUint16(p+32,true),lo=dv.getUint32(p+42,true),name=td.decode(u.subarray(p+46,p+46+nl));
+    var ds=lo+30+dv.getUint16(lo+26,true)+dv.getUint16(lo+28,true);
+    out[name]={m:meth,d:u.subarray(ds,ds+cs)};p+=46+nl+xl+cl}
+  return out}
+async function readXlsx(buf){var z=await unzip(buf),td=new TextDecoder();
+  async function tx(k){var f=z[k];if(!f)return null;return td.decode(f.m===0?f.d:await inflate(f.d))}
+  var ux=function(s){return s.replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&#(\d+);/g,function(_,c){return String.fromCharCode(c)}).replace(/&amp;/g,'&')};
+  var sst=[],ss=await tx('xl/sharedStrings.xml');
+  if(ss)(ss.match(/<si>[\s\S]*?<\/si>|<si\/>/g)||[]).forEach(function(si){si=si.replace(/<rPh[\s\S]*?<\/rPh>/g,'');var t='';si.replace(/<t[^>]*>([\s\S]*?)<\/t>/g,function(_,a){t+=a});sst.push(ux(t))});
+  var names=Object.keys(z).filter(function(k){return /^xl\/worksheets\/sheet\d+\.xml$/.test(k)}).sort(function(a,b){return a.match(/\d+/)[0]-b.match(/\d+/)[0]});
+  if(!names.length)throw new Error('sheet');
+  var sx=await tx(names[0]),rows=[];
+  sx.replace(/<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g,function(_,at,inner){
+    var r=/\br="([A-Z]+)(\d+)"/.exec(at);if(!r||!inner)return;
+    var t=(/\bt="(\w+)"/.exec(at)||[])[1],val=null,m;
+    if(t==='inlineStr'){var tt='';inner.replace(/<t[^>]*>([\s\S]*?)<\/t>/g,function(_,a){tt+=a});val=ux(tt)}
+    else if((m=/<v>([\s\S]*?)<\/v>/.exec(inner))){var x=m[1];val=t==='s'?sst[+x]:t==='str'?ux(x):t==='b'?x==='1':(x!==''&&!isNaN(x)?+x:x)}
+    if(val===null||val===undefined)return;
+    var c=0;for(var k=0;k<r[1].length;k++)c=c*26+r[1].charCodeAt(k)-64;c--;
+    var ri=+r[2]-1;(rows[ri]=rows[ri]||[])[c]=val});
+  return rows}
+function parseCsv(t){t=t.replace(/^\uFEFF/,'');var l=t.split('\n')[0],d=l.split(';').length>l.split(',').length?';':',',rows=[],row=[],f='',q=false;
+  for(var i=0;i<t.length;i++){var c=t[i];
+    if(q){if(c==='"'){if(t[i+1]==='"'){f+='"';i++}else q=false}else f+=c}
+    else if(c==='"')q=true;else if(c===d){row.push(f);f=''}
+    else if(c==='\n'||c==='\r'){if(c==='\r'&&t[i+1]==='\n')i++;row.push(f);rows.push(row);row=[];f=''}
+    else f+=c}
+  if(f!==''||row.length){row.push(f);rows.push(row)}
+  return rows.map(function(r){return r.map(function(x){x=x.trim();return /^-?\d+(\.\d+)?$/.test(x)?+x:x})})}
+function pd(x){if(x instanceof Date)return x;if(typeof x==='number')return new Date(Math.round((x-25569)*864e5));var m=/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/.exec(String(x).trim());return m?new Date(+m[3],m[2]-1,+m[1]):new Date(x)}
+async function importXls(f){
+  if(!f)return;var dm=+v('dm'),M=S.months[cur],rows,nm=f.name.toLowerCase();
+  try{
+    if(/\.(csv|txt)$/.test(nm))rows=parseCsv(await f.text());
+    else if(/\.(xlsx|xlsm)$/.test(nm))rows=await readXlsx(await f.arrayBuffer());
+    else{toast('Ese formato no se puede leer. Abre el archivo en Excel y guárdalo como .xlsx o .csv.',1);return}
+    var ci=0,pi=-1,mi=-1,di=-1,st=0,found=false;
+    (rows[0]||[]).map(norm).forEach(function(t,x){if(/cliente|nombre|razon/.test(t)){ci=x;found=true}else if(/producto|linea|categoria|marca|familia/.test(t)){pi=x;found=true}else if(/mes/.test(t)){mi=x;found=true}else if(/fecha|ultima|compra/.test(t)){di=x;found=true}});
+    if(found)st=1;var add=0,upd=0,skip=0;
+    for(var i=st;i<rows.length;i++){var row=rows[i]||[],name=String(row[ci]==null?'':row[ci]).trim();if(!name)continue;
+      var pid=null;
+      if(pi>=0){var t=norm(row[pi]);M.sections.forEach(function(s){s.products.forEach(function(p){var pn=norm(p.name);if(t&&(t.indexOf(pn)>=0||pn.indexOf(t)>=0))pid=p.id})});if(!pid){skip++;continue}}
+      if(pid&&S.done[norm(name)+'|'+pid]){skip++;continue}
+      var m=dm;
+      if(mi>=0&&typeof row[mi]==='number')m=Math.floor(row[mi]);
+      else if(di>=0&&row[di]){var d=pd(row[di]);if(!isNaN(d))m=Math.max(0,Math.floor((now-d)/(30.44*864e5)))}
+      var ex=S.clients.filter(function(c){return norm(c.name)===norm(name)&&c.pid===pid})[0];
+      if(ex){ex.months=m;upd++}else{S.clients.push({id:uid(),name:name,pid:pid,months:m});add++}}
+    save();render();toast(add+' clientes nuevos'+(upd?', '+upd+' actualizados':'')+(skip?', '+skip+' omitidos (producto no prioritario o ya recuperado)':'')+'.');
+  }catch(x){toast('No pude leer ese archivo. Revisa que sea Excel (.xlsx) o CSV.',1)}
+}
+function backupHtml(){return '<div class="card"><h2>Copia de seguridad y cambio de equipo</h2><div class="mu" style="margin:6px 0">Tus datos se guardan solo en este aparato. Guarda una copia seguido, y úsala para pasar tus datos de la PC al celular (o al revés). Restaurar reemplaza lo que hay en este aparato.'+(S.lastBackup?' Última copia: <b>'+S.lastBackup+'</b>.':' Aún no has guardado ninguna copia.')+'</div><div class="row"><button class="p" onclick="doBackup()">⬇ Guardar copia</button><label class="mu">Restaurar copia: <input type="file" accept=".json,application/json" onchange="doRestore(this.files[0]);this.value=\'\'"></label>'+(dip?'<button onclick="dip.prompt();dip=null;render()">📲 Instalar como app</button>':'')+'</div></div>'}
+function doBackup(){try{var b=new Blob([JSON.stringify(S)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='metas-ventas-'+iso(now)+'.json';document.body.appendChild(a);a.click();a.remove();S.lastBackup=iso(now);save();render();toast('Copia guardada en tus descargas.')}catch(e){toast('No se pudo guardar la copia.',1)}}
+function doRestore(f){if(!f)return;f.text().then(function(t){var d=JSON.parse(t);if(!d||!d.months)throw 0;try{localStorage.setItem(KEY+'_prev',JSON.stringify(S))}catch(e){}mem=d;try{localStorage.setItem(KEY,JSON.stringify(d))}catch(e){}S=load();ensure(cur);view=cur;cfg=false;draft=[];save();render();toast('Copia restaurada.')}).catch(function(){toast('Ese archivo no es una copia válida.',1)})}
+function config(M){
+  var h='<div class="card"><h2>Configuración de '+mlabel(view)+'</h2><div class="mu" style="margin-bottom:10px">Cambia nombres y metas. El próximo mes se copiarán para que los ajustes.</div>';
+  M.sections.forEach(function(s,i){
+    h+='<div style="border:1px solid var(--bd);border-radius:10px;padding:10px;margin-bottom:10px"><div class="row sp"><input value="'+esc(s.name)+'" style="font-weight:700" onchange="S.months[view].sections['+i+'].name=this.value;save();render()">'+
+     xb('s'+s.id,'delSec('+i+')','Eliminar sección')+'</div>';
+    s.products.forEach(function(p,j){
+      h+='<div class="row" style="margin-top:8px"><input value="'+esc(p.name)+'" onchange="S.months[view].sections['+i+'].products['+j+'].name=this.value;save();render()">'+
+       '<span class="mu">Meta S/</span><input type="number" min="0" step="any" value="'+(+p.goal||0)+'" style="width:110px" onchange="S.months[view].sections['+i+'].products['+j+'].goal=+this.value||0;save();render()">'+
+       '<span class="mu">Meta clientes</span><input type="number" min="0" value="'+(+p.rgoal||0)+'" style="width:80px" onchange="S.months[view].sections['+i+'].products['+j+'].rgoal=+this.value||0;save();render()">'+
+       xb('p'+p.id,'delProd('+i+','+j+')')+'</div>'});
+    h+='<div class="row" style="margin-top:8px"><input id="np'+i+'" placeholder="Nuevo producto prioridad" autocomplete="off"><button onclick="addProd('+i+')">+ Agregar</button></div></div>'});
+  h+='<div class="row"><input id="ns" placeholder="Nueva sección (ej: Unilever)" autocomplete="off"><button onclick="addSec()">+ Agregar sección</button></div>';
+  h+='<h2 style="margin-top:16px">Mi avance hasta hoy</h2><div class="mu" style="margin-bottom:8px">Si ya vendiste antes de usar el programa, pon aquí lo acumulado del mes. Los clientes recuperados se separan por tiempo sin comprar, porque de eso depende el bono.</div>';
+  M.sections.forEach(function(s){s.products.forEach(function(p){var b=M.baseR[p.id]||{};
+    h+='<div style="margin-top:8px"><b>'+esc(p.name)+'</b><div class="f">'+
+     '<label>Vendido (S/)<input type="number" min="0" step="any" autocomplete="off" value="'+(+M.base[p.id]||0)+'" onchange="S.months[view].base[\''+p.id+'\']=+this.value||0;save();render()"></label>'+
+     '<label>Recuperados 3 a 5 meses (S/ 2 c/u)<input type="number" min="0" autocomplete="off" value="'+(+b.a||0)+'" onchange="setR(\''+p.id+'\',\'a\',this.value)"></label>'+
+     '<label>Recuperados 6 meses o más (S/ 5 c/u)<input type="number" min="0" autocomplete="off" value="'+(+b.b||0)+'" onchange="setR(\''+p.id+'\',\'b\',this.value)"></label></div></div>'})});
+  h+='<div class="f" style="margin-top:10px"><label>Pedidos hechos hasta hoy<input type="number" min="0" autocomplete="off" value="'+(+M.baseOrders||0)+'" onchange="S.months[view].baseOrders=+this.value||0;save();render()"></label></div>'+
+   '<div class="row" style="margin-top:12px"><button class="p" onclick="S.months[view].reviewed=true;cfg=false;save();render()">Listo</button></div></div>';
+  return h;
+}
+function setR(pid,k,val){var M=S.months[view];M.baseR[pid]=M.baseR[pid]||{a:0,b:0};M.baseR[pid][k]=Math.max(0,Math.floor(+val||0));save();render()}
+function addSec(){var n=v('ns');if(n){S.months[view].sections.push({id:uid(),name:n,products:[]});save();render()}}
+function delSec(i){if(ask('s'+S.months[view].sections[i].id)){S.months[view].sections.splice(i,1);save();render()}}
+function addProd(i){var n=v('np'+i);if(n){S.months[view].sections[i].products.push({id:uid(),name:n,goal:0,rgoal:0});save();render()}}
+function delProd(i,j){var p=S.months[view].sections[i].products[j];if(ask('p'+p.id)){S.months[view].sections[i].products.splice(j,1);save();render()}}
+render();
+if('serviceWorker' in navigator)window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){})});
+</script>
+</body>
+</html>
